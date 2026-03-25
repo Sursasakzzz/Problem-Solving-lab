@@ -34,7 +34,6 @@ class HospitalQueue:
             self.general.append(pid)
 
         self.counter += 1
-        st.success(f"เพิ่มผู้ป่วย: {patient}")
 
     def call_next(self):
         if self.emergency:
@@ -42,14 +41,28 @@ class HospitalQueue:
         elif self.general:
             pid = self.general.pop(0)
         else:
-            st.warning("ไม่มีผู้ป่วยในคิว")
-            return
+            return None
 
-        patient = self.patients.pop(pid)
-        st.info(f"กำลังเรียก: {patient}")
+        return self.patients.pop(pid)
+
+    def delete(self, pid):
+        if pid in self.patients:
+            self.patients.pop(pid)
+
+            if pid in self.general:
+                self.general.remove(pid)
+
+            self.emergency = [i for i in self.emergency if i[2] != pid]
+            heapq.heapify(self.emergency)
+
+    def reset(self):
+        self.general = []
+        self.emergency = []
+        self.patients = {}
+        self.counter = 1
 
     def show_all(self):
-        return [str(p) for p in self.patients.values()]
+        return list(self.patients.values())
 
     def show_queue(self):
         result = []
@@ -66,22 +79,8 @@ class HospitalQueue:
 
         return result
 
-    def delete(self, pid):
-        if pid in self.patients:
-            self.patients.pop(pid)
 
-            if pid in self.general:
-                self.general.remove(pid)
-
-            self.emergency = [i for i in self.emergency if i[2] != pid]
-            heapq.heapify(self.emergency)
-
-            st.success("ลบผู้ป่วยเรียบร้อย")
-        else:
-            st.warning("ไม่พบผู้ป่วย")
-
-
-# ---------- Streamlit UI ----------
+# ---------- Streamlit ----------
 st.set_page_config(page_title="Hospital Queue", page_icon="🏥")
 st.title("🏥 Hospital Queue System")
 
@@ -90,8 +89,10 @@ if "hq" not in st.session_state:
 
 hq = st.session_state.hq
 
-# Sidebar
+
+# ---------- Sidebar ----------
 st.sidebar.header("➕ เพิ่มผู้ป่วย")
+
 pid = st.sidebar.text_input("รหัสผู้ป่วย")
 name = st.sidebar.text_input("ชื่อ")
 symptom = st.sidebar.text_input("อาการ")
@@ -105,28 +106,59 @@ if ptype == "ฉุกเฉิน":
 if st.sidebar.button("เพิ่ม"):
     if pid and name:
         hq.add_patient(pid, name, symptom, ptype, level)
+        st.success("เพิ่มเรียบร้อย")
+
 
 st.sidebar.markdown("---")
+
 del_pid = st.sidebar.text_input("ลบรหัสผู้ป่วย")
 if st.sidebar.button("ลบ"):
     hq.delete(del_pid)
+    st.warning("ลบแล้ว")
 
-# Main
+
+if st.sidebar.button("🔄 รีเซ็ตคิว"):
+    hq.reset()
+    st.error("รีเซ็ตแล้ว")
+
+
+# ---------- Main ----------
 st.header("📋 รายชื่อผู้ป่วย")
-for p in hq.show_all():
-    st.write(p)
+
+patients = hq.show_all()
+if not patients:
+    st.write("ไม่มีข้อมูล")
+else:
+    for p in patients:
+        st.write(str(p))
+
 
 st.markdown("---")
 
 c1, c2 = st.columns(2)
 
+# เรียกคิว
 with c1:
     if st.button("📢 เรียกคิว"):
-        hq.call_next()
+        patient = hq.call_next()
+        if patient:
+            if patient.ptype == "ฉุกเฉิน":
+                st.success(f"กำลังเรียก: {patient.name} (ระดับ {patient.level})")
+            else:
+                st.success(f"กำลังเรียก: {patient.name}")
+        else:
+            st.warning("ไม่มีคิว")
 
+# แสดงคิว
 with c2:
-    st.write("📌 คิวปัจจุบัน")
-    for q in hq.show_queue():
-        st.write(q)
+    st.subheader("📌 คิวปัจจุบัน")
+    queue = hq.show_queue()
+    if not queue:
+        st.write("ไม่มีคิว")
+    else:
+        for q in queue:
+            st.write(q)
 
-st.write(f"จำนวนผู้ป่วย: {len(hq.patients)}")
+# จำนวน
+st.markdown("---")
+st.write(f"👥 จำนวนผู้ป่วย: {len(hq.patients)}")
