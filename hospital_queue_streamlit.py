@@ -84,13 +84,14 @@ class HospitalQueue:
 st.set_page_config(page_title="Hospital Queue", page_icon="🏥")
 st.title("🏥 Hospital Queue System")
 
-# session
+# session fix (กันคิวหาย)
 if "hq" not in st.session_state:
     st.session_state.hq = HospitalQueue()
 
 hq = st.session_state.hq
 
-# ---------- FORM กลางหน้า ----------
+
+# ---------- ฟอร์มเพิ่มผู้ป่วย ----------
 st.subheader("➕ เพิ่มผู้ป่วย")
 
 c1, c2 = st.columns(2)
@@ -113,6 +114,7 @@ if st.button("➕ เพิ่มผู้ป่วย"):
         st.success("เพิ่มผู้ป่วยเรียบร้อย")
 
 st.markdown("---")
+
 
 # ---------- ปุ่มควบคุม ----------
 c3, c4, c5 = st.columns(3)
@@ -138,19 +140,35 @@ with c5:
 
 st.markdown("---")
 
-# ---------- แสดงข้อมูล ----------
+
+# ---------- แสดงผู้ป่วย (UI สวย) ----------
+st.subheader("📋 รายชื่อผู้ป่วย")
+
+patients = hq.show_all()
+
+if not patients:
+    st.info("ไม่มีข้อมูลผู้ป่วย")
+else:
+    for p in patients:
+        with st.container(border=True):
+            col1, col2, col3, col4 = st.columns([1, 2, 2, 2])
+
+            col1.markdown(f"**🆔 {p.pid}**")
+            col2.markdown(f"**👤 {p.name}**")
+            col3.markdown(f"🩺 {p.symptom}")
+
+            if p.ptype == "ฉุกเฉิน":
+                col4.error(f"🚨 ฉุกเฉิน (ระดับ {p.level})")
+            else:
+                col4.success(" ทั่วไป")
+
+st.markdown("---")
+
+
+# ---------- แสดงคิว ----------
 c6, c7 = st.columns(2)
 
 with c6:
-    st.subheader("📋 รายชื่อผู้ป่วย")
-    patients = hq.show_all()
-    if not patients:
-        st.write("ไม่มีข้อมูล")
-    else:
-        for p in patients:
-            st.write(p)
-
-with c7:
     st.subheader("📌 คิวปัจจุบัน")
     queue = hq.show_queue()
     if not queue:
@@ -159,5 +177,8 @@ with c7:
         for q in queue:
             st.write(q)
 
-st.markdown("---")
-st.write(f"👥 จำนวนผู้ป่วย: {len(hq.patients)}")
+with c7:
+    st.subheader("📊 สรุป")
+    st.write(f"👥 จำนวนผู้ป่วยทั้งหมด: {len(hq.patients)}")
+    st.write(f"🚨 ฉุกเฉิน: {len(hq.emergency)}")
+    st.write(f" ทั่วไป: {len(hq.general)}")
