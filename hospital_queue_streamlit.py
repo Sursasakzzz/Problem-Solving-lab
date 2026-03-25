@@ -12,8 +12,8 @@ class Patient:
 
     def __str__(self):
         if self.ptype == "ฉุกเฉิน":
-            return f"{self.name} (🚨 ระดับ {self.level})"
-        return f"{self.name} ( ทั่วไป)"
+            return f"{self.name} (ระดับ {self.level})"
+        return f"{self.name} (ทั่วไป)"
 
 
 # ---------- System ----------
@@ -72,11 +72,11 @@ class HospitalQueue:
         for lvl, _, pid in self.emergency:
             p = self.patients.get(pid)
             if p:
-                result.append(f"🚨 {p.name} (ระดับ {-lvl})")
+                result.append(f"{p.name} (ระดับ {-lvl})")
         for pid in self.general:
             p = self.patients.get(pid)
             if p:
-                result.append(f" {p.name}")
+                result.append(f"{p.name} (ทั่วไป)")
         return result
 
 
@@ -89,9 +89,6 @@ if "hq" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "add"
 
-if "show_all" not in st.session_state:
-    st.session_state.show_all = True
-
 hq = st.session_state.hq
 
 
@@ -103,7 +100,7 @@ def go_page(p):
 # PAGE 1: เพิ่มผู้ป่วย
 # =========================
 if st.session_state.page == "add":
-    st.title("🏥 เพิ่มผู้ป่วย")
+    st.title("เพิ่มผู้ป่วย")
 
     pid = st.text_input("รหัสผู้ป่วย")
     name = st.text_input("ชื่อ")
@@ -114,43 +111,33 @@ if st.session_state.page == "add":
     if ptype == "ฉุกเฉิน":
         level = st.slider("ระดับความรุนแรง", 1, 3)
 
-    if st.button("➕ เพิ่มผู้ป่วย"):
+    if st.button("เพิ่มผู้ป่วย"):
         if pid and name:
             hq.add_patient(pid, name, symptom, ptype, level)
             st.success("เพิ่มเรียบร้อย")
 
     st.markdown("---")
-    st.button("➡️ ไปหน้าจัดการคิว", on_click=go_page, args=("main",))
+    st.button("ไปหน้าจัดการคิว", on_click=go_page, args=("main",))
 
 
 # =========================
 # PAGE 2: จัดการคิว
 # =========================
 elif st.session_state.page == "main":
-    st.title("📋 จัดการคิวผู้ป่วย")
+    st.title("จัดการคิวผู้ป่วย")
 
-    # 🔍 SEARCH + BUTTON
-    c1, c2 = st.columns([3,1])
+    # 🔍 SEARCH + แสดงทั้งหมด
+    keyword = st.text_input("ค้นหา (ชื่อหรือรหัส)")
 
-    with c1:
-        keyword = st.text_input("🔍 ค้นหา (ชื่อหรือรหัส)")
-
-    with c2:
-        if st.button("📄 แสดงทั้งหมด"):
-            st.session_state.show_all = True
-        if st.button("❌ ซ่อน"):
-            st.session_state.show_all = False
-
-    # เลือกข้อมูล
-    if keyword:
-        results = hq.search(keyword)
-    elif st.session_state.show_all:
+    if st.button("แสดงทั้งหมด"):
         results = hq.show_all()
+    elif keyword:
+        results = hq.search(keyword)
     else:
-        results = []
+        results = hq.show_all()
 
     # ---------- แสดงผู้ป่วย ----------
-    st.subheader("📋 รายชื่อผู้ป่วย")
+    st.subheader("รายชื่อผู้ป่วย")
 
     if not results:
         st.info("ไม่มีข้อมูล")
@@ -158,22 +145,23 @@ elif st.session_state.page == "main":
         for p in results:
             with st.container(border=True):
                 c1, c2, c3, c4 = st.columns([1,2,2,2])
-                c1.markdown(f"**🆔 {p.pid}**")
-                c2.markdown(f"**👤 {p.name}**")
-                c3.markdown(f"🩺 {p.symptom}")
+
+                c1.write(f"รหัส: {p.pid}")
+                c2.write(f"ชื่อ: {p.name}")
+                c3.write(f"อาการ: {p.symptom}")
 
                 if p.ptype == "ฉุกเฉิน":
-                    c4.error(f"🚨 ระดับ {p.level}")
+                    c4.write(f"ประเภท: ฉุกเฉิน (ระดับ {p.level})")
                 else:
-                    c4.success(" ปกติ")
+                    c4.write("ประเภท: ทั่วไป")
 
     st.markdown("---")
 
-    # ---------- ปุ่มควบคุม ----------
+    # ---------- ปุ่ม ----------
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        if st.button("📢 เรียกคิว"):
+        if st.button("เรียกคิว"):
             p = hq.call_next()
             if p:
                 st.success(f"กำลังเรียก: {p}")
@@ -181,20 +169,20 @@ elif st.session_state.page == "main":
                 st.warning("ไม่มีคิว")
 
     with c2:
-        del_id = st.text_input("ลบรหัส")
-        if st.button("🗑️ ลบ"):
+        del_id = st.text_input("ลบรหัสผู้ป่วย")
+        if st.button("ลบ"):
             hq.delete(del_id)
             st.warning("ลบแล้ว")
 
     with c3:
-        if st.button("🔄 รีเซ็ต"):
+        if st.button("รีเซ็ต"):
             hq.reset()
             st.error("รีเซ็ตแล้ว")
 
     st.markdown("---")
 
     # ---------- คิว ----------
-    st.subheader("📌 คิวปัจจุบัน")
+    st.subheader("คิวปัจจุบัน")
     queue = hq.show_queue()
     if not queue:
         st.write("ไม่มีคิว")
@@ -203,4 +191,4 @@ elif st.session_state.page == "main":
             st.write(q)
 
     st.markdown("---")
-    st.button("⬅️ กลับหน้าเพิ่มผู้ป่วย", on_click=go_page, args=("add",))
+    st.button("กลับหน้าเพิ่มผู้ป่วย", on_click=go_page, args=("add",))
