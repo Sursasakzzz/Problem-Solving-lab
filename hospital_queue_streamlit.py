@@ -1,0 +1,132 @@
+import streamlit as st
+import heapq
+
+# ---------- Patient Class ----------
+class Patient:
+    def __init__(self, pid, name, symptom, ptype, level=0):
+        self.pid = pid
+        self.name = name
+        self.symptom = symptom
+        self.ptype = ptype
+        self.level = level
+
+    def __str__(self):
+        if self.ptype == "ฉุกเฉิน":
+            return f"{self.name} (ฉุกเฉิน - ระดับ {self.level})"
+        return f"{self.name} (ทั่วไป)"
+
+
+# ---------- Queue System ----------
+class HospitalQueue:
+    def __init__(self):
+        self.general = []
+        self.emergency = []
+        self.patients = {}
+        self.counter = 1
+
+    def add_patient(self, pid, name, symptom, ptype, level=0):
+        patient = Patient(pid, name, symptom, ptype, level)
+        self.patients[pid] = patient
+
+        if ptype == "ฉุกเฉิน":
+            heapq.heappush(self.emergency, (-level, self.counter, pid))
+        else:
+            self.general.append(pid)
+
+        self.counter += 1
+        st.success(f"เพิ่มผู้ป่วย: {patient}")
+
+    def call_next(self):
+        if self.emergency:
+            _, _, pid = heapq.heappop(self.emergency)
+        elif self.general:
+            pid = self.general.pop(0)
+        else:
+            st.warning("ไม่มีผู้ป่วยในคิว")
+            return
+
+        patient = self.patients.pop(pid)
+        st.info(f"กำลังเรียก: {patient}")
+
+    def show_all(self):
+        return [str(p) for p in self.patients.values()]
+
+    def show_queue(self):
+        result = []
+
+        for lvl, _, pid in self.emergency:
+            p = self.patients.get(pid)
+            if p:
+                result.append(f"🚨 {p.name} (ระดับ {-lvl})")
+
+        for pid in self.general:
+            p = self.patients.get(pid)
+            if p:
+                result.append(f"🙂 {p.name}")
+
+        return result
+
+    def delete(self, pid):
+        if pid in self.patients:
+            self.patients.pop(pid)
+
+            if pid in self.general:
+                self.general.remove(pid)
+
+            self.emergency = [i for i in self.emergency if i[2] != pid]
+            heapq.heapify(self.emergency)
+
+            st.success("ลบผู้ป่วยเรียบร้อย")
+        else:
+            st.warning("ไม่พบผู้ป่วย")
+
+
+# ---------- Streamlit UI ----------
+st.set_page_config(page_title="Hospital Queue", page_icon="🏥")
+st.title("🏥 Hospital Queue System")
+
+if "hq" not in st.session_state:
+    st.session_state.hq = HospitalQueue()
+
+hq = st.session_state.hq
+
+# Sidebar
+st.sidebar.header("➕ เพิ่มผู้ป่วย")
+pid = st.sidebar.text_input("รหัสผู้ป่วย")
+name = st.sidebar.text_input("ชื่อ")
+symptom = st.sidebar.text_input("อาการ")
+
+ptype = st.sidebar.selectbox("ประเภท", ["ทั่วไป", "ฉุกเฉิน"])
+
+level = 0
+if ptype == "ฉุกเฉิน":
+    level = st.sidebar.slider("ระดับความรุนแรง", 1, 3)
+
+if st.sidebar.button("เพิ่ม"):
+    if pid and name:
+        hq.add_patient(pid, name, symptom, ptype, level)
+
+st.sidebar.markdown("---")
+del_pid = st.sidebar.text_input("ลบรหัสผู้ป่วย")
+if st.sidebar.button("ลบ"):
+    hq.delete(del_pid)
+
+# Main
+st.header("📋 รายชื่อผู้ป่วย")
+for p in hq.show_all():
+    st.write(p)
+
+st.markdown("---")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    if st.button("📢 เรียกคิว"):
+        hq.call_next()
+
+with c2:
+    st.write("📌 คิวปัจจุบัน")
+    for q in hq.show_queue():
+        st.write(q)
+
+st.write(f"จำนวนผู้ป่วย: {len(hq.patients)}")
