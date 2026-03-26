@@ -1,7 +1,7 @@
 import streamlit as st
 import heapq
 
-# ---------- Patient ----------
+
 class Patient:
     def __init__(self, pid, name, symptom, ptype, level=0):
         self.pid = pid
@@ -10,13 +10,8 @@ class Patient:
         self.ptype = ptype
         self.level = level
 
-    def __str__(self):
-        if self.ptype == "ฉุกเฉิน":
-            return f"{self.name} (ระดับ {self.level})"
-        return f"{self.name} (ทั่วไป)"
 
 
-# ---------- System ----------
 class HospitalQueue:
     def __init__(self):
         self.general = []
@@ -35,6 +30,14 @@ class HospitalQueue:
 
         self.counter += 1
 
+    def update_patient(self, pid, name, symptom, ptype, level):
+        if pid in self.patients:
+            p = self.patients[pid]
+            p.name = name
+            p.symptom = symptom
+            p.ptype = ptype
+            p.level = level
+
     def call_next(self):
         if self.emergency:
             _, _, pid = heapq.heappop(self.emergency)
@@ -47,16 +50,12 @@ class HospitalQueue:
     def delete(self, pid):
         if pid in self.patients:
             self.patients.pop(pid)
+
             if pid in self.general:
                 self.general.remove(pid)
+
             self.emergency = [i for i in self.emergency if i[2] != pid]
             heapq.heapify(self.emergency)
-
-    def reset(self):
-        self.general = []
-        self.emergency = []
-        self.patients = {}
-        self.counter = 1
 
     def search(self, keyword):
         return [
@@ -67,20 +66,8 @@ class HospitalQueue:
     def show_all(self):
         return list(self.patients.values())
 
-    def show_queue(self):
-        result = []
-        for lvl, _, pid in self.emergency:
-            p = self.patients.get(pid)
-            if p:
-                result.append(f"{p.name} (ระดับ {-lvl})")
-        for pid in self.general:
-            p = self.patients.get(pid)
-            if p:
-                result.append(f"{p.name} (ทั่วไป)")
-        return result
 
 
-# ---------- INIT ----------
 st.set_page_config(page_title="Hospital Queue", page_icon="🏥")
 
 if "hq" not in st.session_state:
@@ -89,6 +76,9 @@ if "hq" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "add"
 
+if "edit_id" not in st.session_state:
+    st.session_state.edit_id = None
+
 hq = st.session_state.hq
 
 
@@ -96,9 +86,6 @@ def go_page(p):
     st.session_state.page = p
 
 
-# =========================
-# PAGE 1: เพิ่มผู้ป่วย
-# =========================
 if st.session_state.page == "add":
     st.title("เพิ่มผู้ป่วย")
 
@@ -120,23 +107,13 @@ if st.session_state.page == "add":
     st.button("ไปหน้าจัดการคิว", on_click=go_page, args=("main",))
 
 
-# =========================
-# PAGE 2: จัดการคิว
-# =========================
+
 elif st.session_state.page == "main":
     st.title("จัดการคิวผู้ป่วย")
 
-    # 🔍 SEARCH + แสดงทั้งหมด
-    keyword = st.text_input("ค้นหา (ชื่อหรือรหัส)")
+    keyword = st.text_input("ค้นหา")
+    results = hq.search(keyword) if keyword else hq.show_all()
 
-    if st.button("แสดงทั้งหมด"):
-        results = hq.show_all()
-    elif keyword:
-        results = hq.search(keyword)
-    else:
-        results = hq.show_all()
-
-    # ---------- แสดงผู้ป่วย ----------
     st.subheader("รายชื่อผู้ป่วย")
 
     if not results:
@@ -144,27 +121,53 @@ elif st.session_state.page == "main":
     else:
         for p in results:
             with st.container(border=True):
-                c1, c2, c3, c4 = st.columns([1,2,2,2])
+                c1, c2, c3, c4, c5 = st.columns([1,2,2,2,1])
 
                 c1.write(f"รหัส: {p.pid}")
                 c2.write(f"ชื่อ: {p.name}")
                 c3.write(f"อาการ: {p.symptom}")
 
                 if p.ptype == "ฉุกเฉิน":
-                    c4.write(f"ประเภท: ฉุกเฉิน (ระดับ {p.level})")
+                    c4.write(f"ฉุกเฉิน (ระดับ {p.level})")
                 else:
-                    c4.write("ประเภท: ทั่วไป")
+                    c4.write("ทั่วไป")
+
+
+                if c5.button("แก้ไข", key=p.pid):
+                    st.session_state.edit_id = p.pid
 
     st.markdown("---")
 
-    # ---------- ปุ่ม ----------
-    c1, c2, c3 = st.columns(3)
+
+    if st.session_state.edit_id:
+        pid = st.session_state.edit_id
+        p = hq.patients[pid]
+
+        st.subheader("แก้ไขข้อมูลผู้ป่วย")
+
+        new_name = st.text_input("ชื่อใหม่", p.name)
+        new_symptom = st.text_input("อาการใหม่", p.symptom)
+        new_type = st.selectbox("ประเภทใหม่", ["ทั่วไป", "ฉุกเฉิน"])
+
+        new_level = p.level
+        if new_type == "ฉุกเฉิน":
+            new_level = st.slider("ระดับใหม่", 1, 3, p.level)
+
+        if st.button("บันทึก"):
+            hq.update_patient(pid, new_name, new_symptom, new_type, new_level)
+            st.session_state.edit_id = None
+            st.success("แก้ไขเรียบร้อย")
+
+    st.markdown("---")
+
+
+    c1, c2 = st.columns(2)
 
     with c1:
         if st.button("เรียกคิว"):
             p = hq.call_next()
             if p:
-                st.success(f"กำลังเรียก: {p}")
+                st.success(f"กำลังเรียก: {p.name}")
             else:
                 st.warning("ไม่มีคิว")
 
@@ -173,22 +176,6 @@ elif st.session_state.page == "main":
         if st.button("ลบ"):
             hq.delete(del_id)
             st.warning("ลบแล้ว")
-
-    with c3:
-        if st.button("รีเซ็ต"):
-            hq.reset()
-            st.error("รีเซ็ตแล้ว")
-
-    st.markdown("---")
-
-    # ---------- คิว ----------
-    st.subheader("คิวปัจจุบัน")
-    queue = hq.show_queue()
-    if not queue:
-        st.write("ไม่มีคิว")
-    else:
-        for q in queue:
-            st.write(q)
 
     st.markdown("---")
     st.button("กลับหน้าเพิ่มผู้ป่วย", on_click=go_page, args=("add",))
